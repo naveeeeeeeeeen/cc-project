@@ -1,0 +1,10 @@
+# Worker service requirements (Day 2 — we'll use all of these)
+# For now, just enough to start the placeholder service
+aiokafka==0.10.0
+aioboto3==12.3.0
+pymupdf==1.24.2
+elasticsearch[async]==8.13.1
+httpx==0.27.0
+pydantic==2.7.1
+beautifulsoup4==4.12.3
+lxml==5.2.1

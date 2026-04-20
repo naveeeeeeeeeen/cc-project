@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test artifacts
+stress_test_results.json
+benchmark_results.csv
+*.png
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log

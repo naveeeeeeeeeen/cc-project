@@ -1,0 +1,268 @@
+# ============================================================
+# Distributed Document Processing Pipeline
+# Docker Compose — Infrastructure + Services
+# ============================================================
+#
+# Usage:
+#   docker compose up -d                  # Start core stack
+#   docker compose --profile llm up -d    # Start with Ollama LLM
+#   docker compose logs -f worker         # Follow worker logs
+#   docker compose down -v                # Stop and remove volumes
+# ============================================================
+
+services:
+
+  # ──────────────────────────────────────────────────────────
+  # ZOOKEEPER — Coordination service for Kafka
+  # ──────────────────────────────────────────────────────────
+  # Kafka uses Zookeeper to manage broker metadata, leader
+  # election for partitions, and topic configurations.
+  # Think of it as the "registry" that keeps Kafka organized.
+  # ──────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: dpp-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181        # Port clients (Kafka) connect to
+      ZOOKEEPER_TICK_TIME: 2000          # Base time unit in ms for heartbeats
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+    healthcheck:
+      # Confluent's image only enables 'srvr' by default
+      test: echo srvr | nc localhost 2181 | grep Zookeeper
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - dpp-network
+
+  # ──────────────────────────────────────────────────────────
+  # KAFKA — Message Broker (Pub/Sub)
+  # ──────────────────────────────────────────────────────────
+  # Kafka is a distributed event streaming platform.
+  # Our Ingestion API PRODUCES messages to a topic.
+  # Our Worker CONSUMES messages from the same topic.
+  #
+  # Key concepts:
+  #   - Topic: a named channel (e.g. "document-processing")
+  #   - Partition: topics are split for parallelism
+  #   - Consumer Group: workers share partitions for load balancing
+  #   - Offset: position of a consumer in a partition
+  # ──────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: dpp-kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # LISTENERS: how Kafka binds internally vs externally
+      # PLAINTEXT = inside Docker network (service-to-service)
+      # PLAINTEXT_HOST = from your host machine (localhost)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1   # Single broker, so replication=1
+      # Auto-create topics when a producer first writes to them
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3                      # 3 partitions = up to 3 parallel consumers
+    ports:
+      - "9092:9092"     # Host access
+      - "29092:29092"   # Internal Docker access
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: kafka-broker-api-versions --bootstrap-server localhost:9092
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - dpp-network
+
+  # ──────────────────────────────────────────────────────────
+  # MINIO — S3-Compatible Object Storage
+  # ──────────────────────────────────────────────────────────
+  # MinIO is a self-hosted alternative to AWS S3.
+  # We store uploaded documents (PDFs, HTMLs) here.
+  # Workers download files from MinIO when processing.
+  #
+  # Why not store files in Kafka? Kafka messages should be
+  # small (kilobytes). Documents can be megabytes. We store
+  # a reference (path) in Kafka, and the actual file in MinIO.
+  # ──────────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-04-06T05-26-02Z
+    container_name: dpp-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"    # S3 API
+      - "9001:9001"    # Web console (useful for debugging)
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: curl -f http://localhost:9000/minio/health/ready
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dpp-network
+
+  # ──────────────────────────────────────────────────────────
+  # ELASTICSEARCH — Search & Analytics Engine
+  # ──────────────────────────────────────────────────────────
+  # Elasticsearch stores processed document summaries and
+  # metadata. It supports full-text search, filtering,
+  # and aggregations (facets).
+  #
+  # We run in single-node mode for development.
+  # Security is disabled for simplicity (don't do this in prod).
+  # ──────────────────────────────────────────────────────────
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.2
+    container_name: dpp-elasticsearch
+    environment:
+      - discovery.type=single-node          # No clustering for dev
+      - xpack.security.enabled=false        # Disable auth for simplicity
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"   # Limit memory usage
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: curl -sf http://localhost:9200/_cluster/health
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - dpp-network
+
+  # ──────────────────────────────────────────────────────────
+  # INGESTION API — Document Upload Service
+  # ──────────────────────────────────────────────────────────
+  ingestion-api:
+    build:
+      context: ./services/ingestion-api
+      dockerfile: Dockerfile
+    container_name: dpp-ingestion-api
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC: document-processing
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: documents
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: curl -f http://localhost:8000/health
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - dpp-network
+
+  # ──────────────────────────────────────────────────────────
+  # WORKER — Document Processor (Kafka Consumer)
+  # ──────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: ./services/worker
+      dockerfile: Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TOPIC: document-processing
+      KAFKA_GROUP_ID: document-workers
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: documents
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_INDEX: documents
+      LLM_PROVIDER: ollama
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: llama3.2:1b
+      # MOCK_LLM=true: skip real LLM, use keyword extraction instead.
+      # Set to false and start with --profile llm to use real Ollama.
+      MOCK_LLM: "true"
+    networks:
+      - dpp-network
+
+  # ──────────────────────────────────────────────────────────
+  # QUERY API — Search Service (Day 3)
+  # ──────────────────────────────────────────────────────────
+  query-api:
+    build:
+      context: ./services/query-api
+      dockerfile: Dockerfile
+    container_name: dpp-query-api
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ELASTICSEARCH_INDEX: documents
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: curl -f http://localhost:8001/health
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - dpp-network
+
+  # ──────────────────────────────────────────────────────────
+  # OLLAMA — Local LLM Server (optional, ~4GB image)
+  # Start with: docker compose --profile llm up -d
+  # ──────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: dpp-ollama
+    profiles: ["llm"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - dpp-network
+
+# ──────────────────────────────────────────────────────────
+# VOLUMES — Persistent data storage
+# ──────────────────────────────────────────────────────────
+volumes:
+  zookeeper-data:
+  kafka-data:
+  minio-data:
+  es-data:
+  ollama-data:
+
+# ──────────────────────────────────────────────────────────
+# NETWORK — All services communicate on this network
+# ──────────────────────────────────────────────────────────
+networks:
+  dpp-network:
+    driver: bridge
