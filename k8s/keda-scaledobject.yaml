@@ -1,0 +1,39 @@
+# ============================================================
+# KEDA ScaledObject — Auto-scale Workers Based on Kafka Lag
+# ============================================================
+#
+# HOW KEDA WORKS:
+#   KEDA monitors the Kafka consumer group "document-workers".
+#   It checks how many unprocessed messages (lag) exist.
+#   When lag > lagThreshold, KEDA scales UP the worker Deployment.
+#   When lag drops to 0, KEDA scales DOWN to minReplicaCount.
+#
+# This is EVENT-DRIVEN AUTO-SCALING:
+#   - Traditional HPA scales on CPU/memory (reactive)
+#   - KEDA scales on business metrics like queue depth (proactive)
+#   - Perfect for our use case: more documents = more workers
+#
+# INSTALL KEDA FIRST:
+#   kubectl apply --server-side -f https://github.com/kedacore/keda/releases/download/v2.14.0/keda-2.14.0.yaml
+# ============================================================
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: document-worker-scaler
+  namespace: dpp
+spec:
+  scaleTargetRef:
+    name: document-worker          # Target the worker Deployment
+  pollingInterval: 10              # Check Kafka lag every 10 seconds
+  cooldownPeriod: 30               # Wait 30s before scaling down
+  minReplicaCount: 1               # Minimum 1 worker always running
+  maxReplicaCount: 10              # Maximum 10 workers
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka:29092
+        consumerGroup: document-workers
+        topic: document-processing
+        lagThreshold: "5"          # Scale up when lag > 5 messages per partition
+        offsetResetPolicy: earliest

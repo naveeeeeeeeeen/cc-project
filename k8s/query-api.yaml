@@ -1,0 +1,63 @@
+# ============================================================
+# Query API — Search Service
+# ============================================================
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: query-api
+  namespace: dpp
+spec:
+  type: NodePort
+  ports:
+    - port: 8001
+      targetPort: 8001
+      nodePort: 30081
+  selector:
+    app: query-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: query-api
+  namespace: dpp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: query-api
+  template:
+    metadata:
+      labels:
+        app: query-api
+    spec:
+      containers:
+        - name: query-api
+          image: dpp/query-api:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8001
+          env:
+            - name: ELASTICSEARCH_URL
+              value: "http://elasticsearch:9200"
+            - name: ELASTICSEARCH_INDEX
+              value: "documents"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"

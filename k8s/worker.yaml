@@ -1,0 +1,59 @@
+# ============================================================
+# Worker — Document Processor (Kafka Consumer)
+# This is what KEDA will auto-scale based on Kafka lag
+# ============================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: document-worker
+  namespace: dpp
+spec:
+  # KEDA will override this replicas count
+  replicas: 1
+  selector:
+    matchLabels:
+      app: document-worker
+  template:
+    metadata:
+      labels:
+        app: document-worker
+    spec:
+      containers:
+        - name: worker
+          image: dpp/worker:1.0.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:29092"
+            - name: KAFKA_TOPIC
+              value: "document-processing"
+            - name: KAFKA_GROUP_ID
+              value: "document-workers"
+            - name: MINIO_ENDPOINT
+              value: "minio:9000"
+            - name: MINIO_ACCESS_KEY
+              value: "minioadmin"
+            - name: MINIO_SECRET_KEY
+              value: "minioadmin"
+            - name: MINIO_BUCKET
+              value: "documents"
+            - name: ELASTICSEARCH_URL
+              value: "http://elasticsearch:9200"
+            - name: ELASTICSEARCH_INDEX
+              value: "documents"
+            - name: MOCK_LLM
+              value: "true"
+            - name: LLM_PROVIDER
+              value: "ollama"
+            - name: OLLAMA_URL
+              value: "http://ollama:11434"
+            - name: OLLAMA_MODEL
+              value: "llama3.2:1b"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "1000m"
