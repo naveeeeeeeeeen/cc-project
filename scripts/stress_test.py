@@ -181,8 +181,8 @@ def main():
     upload_errors = sum(1 for r in results if r["status"] == "error")
     upload_rate = uploaded_ok / upload_elapsed * 60 if upload_elapsed > 0 else 0
 
-    print(f"  ✅ Upload complete: {uploaded_ok} ok, {upload_errors} errors in {upload_elapsed:.1f}s")
-    print(f"  📊 Upload throughput: {upload_rate:.0f} docs/min")
+    print(f"   Upload complete: {uploaded_ok} ok, {upload_errors} errors in {upload_elapsed:.1f}s")
+    print(f"   Upload throughput: {upload_rate:.0f} docs/min")
 
     # Wait for processing
     print(f"\n[3/3] Waiting for worker processing...")
@@ -201,7 +201,7 @@ def main():
     print(f"  Processing errors:     {proc_result.get('errors', 0)}")
     print(f"  Total time:            {proc_result.get('elapsed_seconds', 0):.1f}s")
     if proc_result.get("timeout"):
-        print(f"  ⚠️  TIMEOUT: not all documents processed within deadline")
+        print(f"    TIMEOUT: not all documents processed within deadline")
     print(f"{'='*60}\n")
 
     # Save results to JSON
