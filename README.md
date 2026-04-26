@@ -5,6 +5,15 @@
 
 A cloud-native pipeline that ingests large volumes of documents (PDFs, HTML), processes them in parallel across worker pods, generates LLM-powered summaries, extracts key entities, and stores everything in a searchable index.
 
+## Key Features
+
+- **Asynchronous Ingestion:** High-throughput API that offloads files to MinIO and tasks to Kafka.
+- **Parallel Processing:** Distributed workers consume messages using Kafka consumer groups.
+- **LLM-Powered Summarization:** Automatic generation of 3-sentence summaries and entity extraction.
+- **Advanced Search:** Full-text search and aggregations powered by Elasticsearch.
+- **Event-Driven Auto-Scaling:** KEDA dynamically scales worker pods based on Kafka queue depth.
+- **Resilient & Cloud-Native:** Kubernetes manifests for deployment, self-healing, and service discovery.
+
 ## Architecture
 
 ```
