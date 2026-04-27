@@ -1,5 +1,5 @@
 # ============================================================
-# Kafka + Zookeeper — Message Broker for the Pipeline
+# Kafka + Zookeeper - Message Broker for the Pipeline
 # ============================================================
 ---
 apiVersion: v1

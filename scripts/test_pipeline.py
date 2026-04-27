@@ -2,7 +2,7 @@
 """
 Functional Test Suite for the Distributed Document Processing Pipeline.
 
-Tests the complete flow: upload → MinIO → Kafka → Worker → Elasticsearch → Query API.
+Tests the complete flow: upload -> MinIO -> Kafka -> Worker -> Elasticsearch -> Query API.
 
 Usage:
     python3 scripts/test_pipeline.py [--ingestion-url URL] [--query-url URL]

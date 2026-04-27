@@ -1,5 +1,5 @@
 # ============================================================
-# Worker — Document Processor (Kafka Consumer)
+# Worker - Document Processor (Kafka Consumer)
 # This is what KEDA will auto-scale based on Kafka lag
 # ============================================================
 ---

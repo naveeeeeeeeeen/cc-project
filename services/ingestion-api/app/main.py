@@ -126,7 +126,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("Ingestion API ready!")
 
-    yield  # ← App runs here, handling requests
+    yield  # # App runs here, handling requests
 
     # ── SHUTDOWN ──
     logger.info("Shutting down Ingestion API...")
@@ -216,7 +216,7 @@ async def upload_document(file: UploadFile = File(...)):
     # MinIO path: documents/{uuid}.pdf
     object_key = f"{doc_id}{extension}"
 
-    logger.info(f"Uploading document: {file.filename} → {object_key}")
+    logger.info(f"Uploading document: {file.filename} -> {object_key}")
 
     # ── Step 3: Upload file to MinIO ──
     # We read the file content and upload it to our S3 bucket.

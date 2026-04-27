@@ -1,5 +1,5 @@
 # ============================================================
-# KEDA ScaledObject — Auto-scale Workers Based on Kafka Lag
+# KEDA ScaledObject - Auto-scale Workers Based on Kafka Lag
 # ============================================================
 #
 # HOW KEDA WORKS:

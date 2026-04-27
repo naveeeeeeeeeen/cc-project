@@ -15,7 +15,7 @@ COPY app/ app/
 
 # Worker is a long-running process, not a web server
 # Health check uses process detection
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
     CMD pgrep -f "app.worker" || exit 1
 
 CMD ["python", "-m", "app.worker"]

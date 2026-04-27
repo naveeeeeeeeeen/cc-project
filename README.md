@@ -1,123 +1,142 @@
 # Distributed Document Processing Pipeline with LLM Summarization
 
-> **CSL-520 Cloud Computing — M.Tech Project**
-> IIT Roorkee | Team of 3
+> CSL-520 Cloud Computing | IIT Roorkee
 
-A cloud-native pipeline that ingests large volumes of documents (PDFs, HTML), processes them in parallel across worker pods, generates LLM-powered summaries, extracts key entities, and stores everything in a searchable index.
-
-## Key Features
-
-- **Asynchronous Ingestion:** High-throughput API that offloads files to MinIO and tasks to Kafka.
-- **Parallel Processing:** Distributed workers consume messages using Kafka consumer groups.
-- **LLM-Powered Summarization:** Automatic generation of 3-sentence summaries and entity extraction.
-- **Advanced Search:** Full-text search and aggregations powered by Elasticsearch.
-- **Event-Driven Auto-Scaling:** KEDA dynamically scales worker pods based on Kafka queue depth.
-- **Resilient & Cloud-Native:** Kubernetes manifests for deployment, self-healing, and service discovery.
+A pipeline that ingests documents (PDFs, HTML), processes them in parallel, generates summaries using an LLM (Ollama), extracts key entities, and stores everything in a searchable index.
 
 ## Architecture
 
 ```
-User ──→ Ingestion API ──→ MinIO (file storage)
-              │
-              └──→ Kafka (message queue)
-                       │
-              ┌────────┼────────┐
-              ▼        ▼        ▼
-          Worker 1  Worker 2  Worker N  (KEDA auto-scaled)
-              │        │        │
-              ▼        ▼        ▼
-           Elasticsearch (search index)
-                       │
-              Query API ──→ User (search results)
+User uploads file
+       |
+       v
+  Ingestion API (FastAPI, port 8000)
+    - Stores file in MinIO (object storage)
+    - Publishes message to Kafka (message queue)
+       |
+       v
+  Kafka (message broker, 3 partitions)
+       |
+       v
+  Worker (Kafka consumer, KEDA auto-scaled)
+    - Downloads file from MinIO
+    - Extracts text (PyMuPDF for PDF, BeautifulSoup for HTML)
+    - Sends text to Ollama LLM for summarization
+    - Stores summary + entities in Elasticsearch
+       |
+       v
+  Query API (FastAPI, port 8001)
+    - Full-text search across all summaries
+    - Filter by topic, name, organization
+    - Aggregations and pipeline stats
 ```
 
 ## Tech Stack
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| Ingestion API | FastAPI | Accept uploads, store in MinIO, publish to Kafka |
-| Message Broker | Apache Kafka | Decouple upload from processing, enable parallelism |
-| Object Storage | MinIO (S3-compatible) | Store raw document files |
-| Worker | Python + PyMuPDF | Extract text, call LLM, index results |
-| LLM | Ollama / OpenAI / Mock | Generate 3-sentence summaries, extract entities |
-| Search Engine | Elasticsearch | Full-text search, facets, aggregations |
-| Query API | FastAPI | Search, filter, retrieve processed documents |
-| Auto-scaling | KEDA | Scale workers based on Kafka consumer lag |
-| Orchestration | Kubernetes | Container management, self-healing, rolling updates |
+| Component | Technology |
+|-----------|-----------|
+| Ingestion API | FastAPI |
+| Message Broker | Apache Kafka |
+| Object Storage | MinIO (S3-compatible) |
+| Worker | Python + PyMuPDF + BeautifulSoup |
+| LLM | Ollama (llama3.2:1b) |
+| Search Engine | Elasticsearch |
+| Query API | FastAPI |
+| Auto-scaling | KEDA (Kafka lag-based) |
+| Orchestration | Kubernetes / Docker Compose |
 
-## Quick Start (Docker Compose)
+## Setup and Run
 
 ### Prerequisites
-- Docker & Docker Compose
-- Python 3.11+ (for running tests)
-- ~4GB free RAM
 
-### 1. Start the Stack
+- Docker and Docker Compose
+- Python 3.11+ (for test scripts)
+- ~6GB free disk space (for Ollama model)
+
+### Step 1: Build images
+
 ```bash
-# Clone and enter the project
-git clone https://github.com/naveeeeeeeeeen/cc-project.git
-cd cc-project
-
-# Build and start all services
 docker compose build
-docker compose up -d
+```
 
-# Verify all services are healthy
+### Step 2: Start the stack with Ollama LLM
+
+```bash
+docker compose --profile llm up -d
+```
+
+### Step 3: Wait for services to become healthy
+
+```bash
+# Check status (wait until all show "healthy")
 docker compose ps
 ```
 
-### 2. Upload a Document
-```bash
-# Upload via curl
-curl -X POST http://localhost:8000/upload \
-  -F "file=@your_document.pdf;type=application/pdf"
+### Step 4: Pull the LLM model (first time only)
 
-# Or upload HTML
-curl -X POST http://localhost:8000/upload \
-  -F "file=@page.html;type=text/html"
+```bash
+docker exec dpp-ollama ollama pull llama3.2:1b
 ```
 
-### 3. Search Documents
+### Step 5: Upload a document
+
 ```bash
-# Full-text search
-curl "http://localhost:8001/search?q=machine+learning"
+curl -X POST http://localhost:8000/upload \
+  -F "file=@your_document.pdf;type=application/pdf"
+```
 
-# Filter by topic
-curl "http://localhost:8001/search?topic=kubernetes"
+### Step 6: Wait ~15-30 seconds for LLM processing, then search
 
-# Get pipeline stats
+```bash
+curl "http://localhost:8001/search?q=your+keyword"
+```
+
+### Step 7: View stats and facets
+
+```bash
 curl http://localhost:8001/stats
-
-# Get facets (top topics, names, etc.)
 curl http://localhost:8001/facets
 ```
 
-### 4. Run Tests
-```bash
-pip install httpx
-python3 scripts/test_pipeline.py    # 20 functional tests
-python3 scripts/stress_test.py      # 500-doc stress test
-```
+## Browser URLs
+
+| URL | What it does |
+|-----|-------------|
+| http://localhost:8000/docs | Ingestion API - upload documents here |
+| http://localhost:8001/docs | Query API - search documents here |
+| http://localhost:9001 | MinIO Console - browse stored files (minioadmin / minioadmin) |
 
 ## API Endpoints
 
 ### Ingestion API (port 8000)
+
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/upload` | Upload PDF/HTML for processing |
-| GET | `/documents` | List documents in MinIO |
-| GET | `/health` | Health check |
-| GET | `/docs` | Swagger UI |
+| POST | /upload | Upload PDF or HTML for processing |
+| GET | /documents | List documents in MinIO |
+| GET | /health | Health check |
 
 ### Query API (port 8001)
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/search` | Full-text search with filters |
-| GET | `/documents/{id}` | Get document by ID |
-| GET | `/facets` | Topic/entity aggregations |
-| GET | `/stats` | Pipeline statistics |
-| GET | `/health` | Health check |
-| GET | `/docs` | Swagger UI |
+| GET | /search | Full-text search with filters |
+| GET | /documents/{id} | Get document by ID |
+| GET | /facets | Top topics, names, organizations |
+| GET | /stats | Pipeline statistics |
+| GET | /health | Health check |
+
+## Run Tests
+
+```bash
+pip install httpx
+
+# 20 functional tests
+python3 scripts/test_pipeline.py
+
+# 500-document stress test
+python3 scripts/stress_test.py --count 500 --workers 1
+```
 
 ## Kubernetes Deployment
 
@@ -125,12 +144,12 @@ python3 scripts/stress_test.py      # 500-doc stress test
 # Install KEDA
 kubectl apply --server-side -f https://github.com/kedacore/keda/releases/download/v2.14.0/keda-2.14.0.yaml
 
-# Build and tag images
+# Build images for the cluster
 docker build -t dpp/ingestion-api:1.0.0 -f services/ingestion-api/Dockerfile services/ingestion-api/
 docker build -t dpp/worker:1.0.0 -f services/worker/Dockerfile services/worker/
 docker build -t dpp/query-api:1.0.0 -f services/query-api/Dockerfile services/query-api/
 
-# Deploy to Kubernetes
+# Deploy
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/kafka.yaml
 kubectl apply -f k8s/minio.yaml
@@ -140,7 +159,7 @@ kubectl apply -f k8s/worker.yaml
 kubectl apply -f k8s/query-api.yaml
 kubectl apply -f k8s/keda-scaledobject.yaml
 
-# Verify
+# Check pods
 kubectl get pods -n dpp
 ```
 
@@ -148,43 +167,42 @@ kubectl get pods -n dpp
 
 ```
 cc-project/
-├── docker-compose.yml              # Local development stack
-├── .gitignore
-├── README.md
-├── report.md                       # Technical report
-├── services/
-│   ├── ingestion-api/              # Upload → MinIO + Kafka
-│   │   ├── Dockerfile
-│   │   ├── requirements.txt
-│   │   └── app/main.py
-│   ├── worker/                     # Kafka → Extract → LLM → Elasticsearch
-│   │   ├── Dockerfile
-│   │   ├── requirements.txt
-│   │   └── app/worker.py
-│   └── query-api/                  # Search → Elasticsearch
-│       ├── Dockerfile
-│       ├── requirements.txt
-│       └── app/main.py
-├── k8s/                            # Kubernetes manifests
-│   ├── namespace.yaml
-│   ├── kafka.yaml
-│   ├── minio.yaml
-│   ├── elasticsearch.yaml
-│   ├── ingestion-api.yaml
-│   ├── worker.yaml
-│   ├── query-api.yaml
-│   └── keda-scaledobject.yaml
-└── scripts/
-    ├── test_pipeline.py            # Functional tests (20 tests)
-    └── stress_test.py              # 500+ document load test
+  docker-compose.yml
+  README.md
+  Demo.md
+  services/
+    ingestion-api/         # Upload files, store in MinIO, queue in Kafka
+      Dockerfile
+      requirements.txt
+      app/main.py
+    worker/                # Consume from Kafka, extract text, call LLM, index in ES
+      Dockerfile
+      requirements.txt
+      app/worker.py
+    query-api/             # Search Elasticsearch, return results
+      Dockerfile
+      requirements.txt
+      app/main.py
+  k8s/                     # Kubernetes manifests
+    namespace.yaml
+    kafka.yaml
+    minio.yaml
+    elasticsearch.yaml
+    ingestion-api.yaml
+    worker.yaml
+    query-api.yaml
+    keda-scaledobject.yaml
+  scripts/
+    test_pipeline.py       # 20 functional tests
+    stress_test.py         # Load test (500+ documents)
 ```
 
-## Stress Test Results
+## Clean Up
 
-| Metric | Value |
-|--------|-------|
-| Documents | 500 |
-| Upload throughput | 1,440 docs/min |
-| Processing throughput | 7,304 docs/min |
-| Error rate | 0% |
-| Worker pods | 1 (single worker, mock LLM) |
+```bash
+# Stop everything and remove data
+docker compose --profile llm down -v
+
+# Remove docker images to free space
+docker system prune -af
+```
