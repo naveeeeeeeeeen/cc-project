@@ -1,10 +1,10 @@
 """
-Query API — FastAPI application for searching processed documents.
+Query API - FastAPI application for searching processed documents.
 
 This service provides the READ side of our pipeline:
 1. Full-text search across summaries and text content
 2. Filter by extracted entities (names, dates, topics, organizations)
-3. Aggregations (facets) — "what are the top topics across all documents?"
+3. Aggregations (facets) - "what are the top topics across all documents?"
 4. Document retrieval by ID
 5. Pipeline statistics (total docs, status breakdown)
 
@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI):
 # FASTAPI APPLICATION
 # ──────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Document Processing Pipeline — Query API",
+    title="Document Processing Pipeline - Query API",
     description="Search and retrieve processed documents with summaries and entities.",
     version="1.0.0",
     lifespan=lifespan,
@@ -78,7 +78,7 @@ app.add_middleware(
 # ──────────────────────────────────────────────────────────
 @app.get("/health")
 async def health():
-    """Health check — verifies Elasticsearch connectivity."""
+    """Health check - verifies Elasticsearch connectivity."""
     try:
         info = await es_client.cluster.health()
         return {

@@ -1,5 +1,5 @@
 """
-Ingestion API — FastAPI application for document upload and queuing.
+Ingestion API - FastAPI application for document upload and queuing.
 
 This is the ENTRY POINT of our pipeline. It does 3 things:
 1. Accepts document uploads (PDF, HTML) via HTTP POST
@@ -139,7 +139,7 @@ async def lifespan(app: FastAPI):
 # FASTAPI APPLICATION
 # ──────────────────────────────────────────────────────────
 app = FastAPI(
-    title="Document Processing Pipeline — Ingestion API",
+    title="Document Processing Pipeline - Ingestion API",
     description="Upload documents for processing. Files are stored in MinIO and queued via Kafka.",
     version="1.0.0",
     lifespan=lifespan,
@@ -167,12 +167,12 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
-    """Health check — returns OK if the service is running."""
+    """Health check - returns OK if the service is running."""
     return {"status": "healthy", "service": "ingestion-api"}
 
 
 # ──────────────────────────────────────────────────────────
-# UPLOAD ENDPOINT — The Core of This Service
+# UPLOAD ENDPOINT - The Core of This Service
 # ──────────────────────────────────────────────────────────
 # This is where the magic happens:
 # 1. Validate the uploaded file type

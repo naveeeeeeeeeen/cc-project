@@ -1,5 +1,5 @@
 """
-Worker Service — Kafka Consumer for Document Processing.
+Worker Service - Kafka Consumer for Document Processing.
 
 This is the BRAIN of the pipeline. It runs an infinite loop:
 1. Consume messages from Kafka topic "document-processing"
@@ -150,9 +150,9 @@ def extract_text(file_bytes: bytes, content_type: str) -> str:
 # LLM INTEGRATION
 # ══════════════════════════════════════════════════════════
 # We support 3 modes:
-# 1. Ollama (local LLM) — free, runs on your machine
-# 2. OpenAI API — paid, higher quality
-# 3. Mock mode — no LLM needed, uses keyword extraction
+# 1. Ollama (local LLM) - free, runs on your machine
+# 2. OpenAI API - paid, higher quality
+# 3. Mock mode - no LLM needed, uses keyword extraction
 #
 # The LLM prompt asks for:
 # - A 3-sentence summary
@@ -226,7 +226,7 @@ async def call_openai(text: str) -> dict:
 
 def mock_llm(text: str) -> dict:
     """
-    Mock LLM — extracts keywords without a real LLM.
+    Mock LLM - extracts keywords without a real LLM.
 
     This is useful for testing the pipeline end-to-end
     without needing Ollama or OpenAI. It uses simple
@@ -358,7 +358,7 @@ async def ensure_index(es: AsyncElasticsearch):
 async def index_document(es: AsyncElasticsearch, doc: dict):
     """
     Index a processed document into Elasticsearch.
-    Uses the doc_id as the document ID for idempotency —
+    Uses the doc_id as the document ID for idempotency -
     if we process the same document twice (at-least-once),
     it just overwrites the same ES document.
     """
@@ -438,7 +438,7 @@ async def process_document(message: dict, s3_session, es: AsyncElasticsearch):
         await index_document(es, es_doc)
 
         logger.info(
-            f"✅ Processed {filename} in {processing_ms}ms | "
+            f"[OK] Processed {filename} in {processing_ms}ms | "
             f"Summary: {llm_result.get('summary', '')[:80]}..."
         )
 
@@ -463,7 +463,7 @@ async def process_document(message: dict, s3_session, es: AsyncElasticsearch):
             "error_message": str(e),
         }
         await index_document(es, error_doc)
-        logger.error(f"❌ Failed to process {filename}: {e}")
+        logger.error(f"[ERROR] Failed to process {filename}: {e}")
 
 
 # ══════════════════════════════════════════════════════════
@@ -482,7 +482,7 @@ async def process_document(message: dict, s3_session, es: AsyncElasticsearch):
 
 
 async def main():
-    """Main worker loop — consume from Kafka, process, index."""
+    """Main worker loop - consume from Kafka, process, index."""
     logger.info("=" * 60)
     logger.info("Starting Worker Service")
     logger.info(f"  Kafka: {KAFKA_BOOTSTRAP_SERVERS}")
@@ -504,7 +504,7 @@ async def main():
     # ── Initialize Kafka Consumer ──
     # auto_offset_reset="earliest": start from beginning if no committed offset
     # enable_auto_commit=False: we commit manually after successful processing
-    #   (this ensures at-least-once delivery — if we crash before committing,
+    #   (this ensures at-least-once delivery - if we crash before committing,
     #    the message will be reprocessed on restart)
     consumer = AIOKafkaConsumer(
         KAFKA_TOPIC,

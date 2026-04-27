@@ -30,10 +30,10 @@ def test(name: str, condition: bool, detail: str = ""):
     global passed, failed
     if condition:
         passed += 1
-        print(f"  {GREEN}✅ PASS{RESET}: {name}")
+        print(f"  {GREEN}PASS{RESET}: {name}")
     else:
         failed += 1
-        print(f"  {RED}❌ FAIL{RESET}: {name} — {detail}")
+        print(f"  {RED}FAIL{RESET}: {name} - {detail}")
 
 
 def main():
@@ -49,7 +49,7 @@ def main():
     client = httpx.Client(timeout=30)
 
     print(f"\n{BOLD}{'='*60}")
-    print("Document Processing Pipeline — Functional Tests")
+    print("Document Processing Pipeline - Functional Tests")
     print(f"{'='*60}{RESET}\n")
 
     # ── Test 1: Health checks ──
@@ -129,7 +129,7 @@ startxref
 
     # ── Test 5: Wait for processing ──
     print(f"\n{BOLD}[Group 5] Worker Processing{RESET}")
-    print(f"  {YELLOW}⏳ Waiting 8s for worker to process...{RESET}")
+    print(f"  {YELLOW}Waiting 8s for worker to process...{RESET}")
     time.sleep(8)
 
     if doc_id:
