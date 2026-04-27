@@ -9,7 +9,11 @@ Uploads 500+ documents concurrently and measures:
 - Error rate
 
 Usage:
-    python3 scripts/stress_test.py [--count 500] [--concurrency 20]
+    # Docker Compose (localhost)
+    python3 scripts/stress_test.py --count 500 --concurrency 20
+
+    # Kubernetes (use service names or port-forwarded URLs)
+    python3 scripts/stress_test.py --ingestion-url http://localhost:30080 --query-url http://localhost:30081 --workers 3
 """
 
 import os
@@ -134,16 +138,27 @@ def wait_for_processing(total_expected: int, timeout: int = 300) -> dict:
 
 
 def main():
+    global INGESTION_URL, QUERY_URL
+
     parser = argparse.ArgumentParser(description="Stress test the pipeline")
     parser.add_argument("--count", type=int, default=500, help="Number of documents to upload")
     parser.add_argument("--concurrency", type=int, default=20, help="Concurrent upload threads")
+    parser.add_argument("--ingestion-url", default=INGESTION_URL, help="Ingestion API URL")
+    parser.add_argument("--query-url", default=QUERY_URL, help="Query API URL")
+    parser.add_argument("--workers", type=int, default=1, help="Number of active worker pods")
     args = parser.parse_args()
 
     count = args.count
     concurrency = args.concurrency
+    INGESTION_URL = args.ingestion_url
+    QUERY_URL = args.query_url
+    num_workers = args.workers
 
     print(f"\n{'='*60}")
     print(f"STRESS TEST — {count} documents, {concurrency} concurrent uploads")
+    print(f"  Ingestion API: {INGESTION_URL}")
+    print(f"  Query API:     {QUERY_URL}")
+    print(f"  Worker pods:   {num_workers}")
     print(f"{'='*60}\n")
 
     # Get baseline stats
@@ -193,6 +208,7 @@ def main():
     print(f"\n{'='*60}")
     print(f"STRESS TEST RESULTS")
     print(f"{'='*60}")
+    print(f"  Worker pods:           {num_workers}")
     print(f"  Documents uploaded:    {uploaded_ok}/{count}")
     print(f"  Upload errors:         {upload_errors}")
     print(f"  Upload throughput:     {upload_rate:.0f} docs/min")
@@ -207,7 +223,11 @@ def main():
     # Save results to JSON
     report = {
         "timestamp": datetime.now().isoformat(),
-        "config": {"count": count, "concurrency": concurrency},
+        "config": {
+            "count": count, "concurrency": concurrency,
+            "worker_pods": num_workers,
+            "ingestion_url": INGESTION_URL, "query_url": QUERY_URL,
+        },
         "upload": {
             "total": count, "success": uploaded_ok, "errors": upload_errors,
             "elapsed_seconds": upload_elapsed,
