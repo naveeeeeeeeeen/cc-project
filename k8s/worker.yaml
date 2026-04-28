@@ -44,6 +44,8 @@ spec:
               value: "documents"
             - name: MOCK_LLM
               value: "true"
+            - name: MOCK_LLM_DELAY
+              value: "1"
             - name: LLM_PROVIDER
               value: "ollama"
             - name: OLLAMA_URL
