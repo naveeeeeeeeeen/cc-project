@@ -32,7 +32,7 @@ spec:
   triggers:
     - type: kafka
       metadata:
-        bootstrapServers: kafka:29092
+        bootstrapServers: kafka.dpp.svc.cluster.local:29092
         consumerGroup: document-workers
         topic: document-processing
         lagThreshold: "5"          # Scale up when lag > 5 messages per partition

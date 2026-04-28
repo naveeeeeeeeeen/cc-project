@@ -233,6 +233,11 @@ def mock_llm(text: str) -> dict:
     heuristics: word frequency for topics, regex for
     dates, capitalized words for names.
     """
+    import time
+    delay = float(os.getenv("MOCK_LLM_DELAY", "1"))
+    if delay > 0:
+        time.sleep(delay)
+
     words = re.findall(r'\b[a-zA-Z]{4,}\b', text.lower())
     word_freq = Counter(words)
 

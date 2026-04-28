@@ -23,6 +23,7 @@ import json
 import random
 import string
 import argparse
+import subprocess
 import concurrent.futures
 from datetime import datetime
 
@@ -30,6 +31,25 @@ import httpx
 
 INGESTION_URL = os.getenv("INGESTION_URL", "http://localhost:8000")
 QUERY_URL = os.getenv("QUERY_URL", "http://localhost:8001")
+
+
+def get_actual_worker_pods() -> int:
+    """Get the actual number of ready worker pods from Kubernetes."""
+    try:
+        result = subprocess.run(
+            [
+                "kubectl", "get", "deployment", "document-worker",
+                "-n", "dpp",
+                "-o", "jsonpath={.status.readyReplicas}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        val = result.stdout.strip()
+        return int(val) if val else 0
+    except Exception:
+        return 0
 
 
 def generate_html_doc(index: int) -> tuple[str, bytes]:
@@ -145,14 +165,17 @@ def main():
     parser.add_argument("--concurrency", type=int, default=20, help="Concurrent upload threads")
     parser.add_argument("--ingestion-url", default=INGESTION_URL, help="Ingestion API URL")
     parser.add_argument("--query-url", default=QUERY_URL, help="Query API URL")
-    parser.add_argument("--workers", type=int, default=1, help="Number of active worker pods")
+    parser.add_argument("--workers", type=int, default=1, help="Number of active worker pods (overridden by actual count if kubectl is available)")
     args = parser.parse_args()
 
     count = args.count
     concurrency = args.concurrency
     INGESTION_URL = args.ingestion_url
     QUERY_URL = args.query_url
-    num_workers = args.workers
+
+    # Use actual pod count from Kubernetes; fall back to --workers argument
+    actual_workers = get_actual_worker_pods()
+    num_workers = actual_workers if actual_workers > 0 else args.workers
 
     print(f"\n{'='*60}")
     print(f"STRESS TEST - {count} documents, {concurrency} concurrent uploads")
@@ -203,6 +226,11 @@ def main():
     print(f"\n[3/3] Waiting for worker processing...")
     expected_total = baseline_count + uploaded_ok
     proc_result = wait_for_processing(expected_total, timeout=600)
+
+    # Get final pod count at the time of reporting
+    final_workers = get_actual_worker_pods()
+    if final_workers > 0:
+        num_workers = final_workers
 
     # Final report
     print(f"\n{'='*60}")
